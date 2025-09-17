@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GRASIAS</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700&display=swap" rel="stylesheet">
+  
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getDatabase, ref, set, get, child } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+    import { getAuth, signInWithPopup, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyAekz29R9IwY1pygd4Mic5AX8XZ7A7Z4Fs",
+      authDomain: "grasias-d7830.firebaseapp.com",
+      databaseURL: "https://grasias-d7830-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "grasias-d7830",
+      storageBucket: "grasias-d7830.appspot.com",
+      messagingSenderId: "134413476604",
+      appId: "1:134413476604:web:ab1acfa69c025218cbad79",
+      measurementId: "G-6QBYM41CJ1"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const auth = getAuth(app);
+    const provider = new GoogleAuthProvider();
+
+    window.signInWithGoogle = () => {
+      const roleInput = document.querySelector('input[name="role"]:checked');
+      if (!roleInput) {
+        alert("يرجى اختيار الدور قبل تسجيل الدخول");
+        return;
+      }
+      window.currentRole = roleInput.value;
+
+      signInWithPopup(auth, provider)
+        .then((result) => {
+          const user = result.user;
+          const userRef = ref(db, `users/${user.uid}`);
+
+          get(userRef).then((snapshot) => {
+            if (snapshot.exists()) {
+              showPage("mapPage");
+              loadMap(user.displayName);
+            } else {
+              // حفظ بيانات المستخدم الأساسية
+              set(userRef, {
+                name: user.displayName,
+                email: user.email,
+                role: window.currentRole,
+                createdAt: new Date().toISOString()
+              });
+              
+              if (window.currentRole === "rakib") {
+                showPage("passengerPage");
+              } else {
+                showPage("driverPage");
+              }
+            }
+          });
+        })
+        .catch((error) => {
+          console.error("خطأ في تسجيل الدخول:", error);
+          alert("فشل تسجيل الدخول: " + error.message);
+        });
+    };
+  </script>
+  
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Cairo', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      direction: rtl;
+      padding: 20px;
+    }
+    
+    .box {
+      background: white;
+      padding: 30px 25px;
+      border-radius: 20px;
+      box-shadow: 0 15px 50px rgba(0,0,0,0.2);
+      width: 100%;
+      max-width: 400px;
+      text-align: center;
+      animation: fadeIn 0.6s ease-in-out;
+    }
+    
+    @keyframes fadeIn {
+      from { 
+        opacity: 0; 
+        transform: translateY(30px); 
+      }
+      to { 
+        opacity: 1; 
+        transform: translateY(0); 
+      }
+    }
+    
+    h2 { 
+      margin-bottom: 25px; 
+      color: #4a5568; 
+      font-weight: 600;
+      font-size: 24px;
+    }
+    
+    input, button {
+      width: 100%;
+      padding: 15px;
+      border-radius: 12px;
+      margin-bottom: 15px;
+      font-size: 16px;
+      border: 2px solid #e2e8f0;
+      transition: all 0.3s ease;
+      font-family: 'Cairo', sans-serif;
+    }
+    
+    input:focus {
+      border-color: #667eea;
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+    
+    button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+      transition: transform 0.2s ease;
+    }
+    
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+    }
+    
+    button:active {
+      transform: translateY(0);
+    }
+    
+    .choice { 
+      text-align: right; 
+      margin: 25px 0; 
+    }
+    
+    .choice label { 
+      display: flex;
+      align-items: center;
+      margin-bottom: 12px; 
+      font-size: 16px;
+      cursor: pointer;
+      padding: 10px;
+      border-radius: 8px;
+      transition: background-color 0.2s ease;
+    }
+    
+    .choice label:hover {
+      background-color: #f7fafc;
+    }
+    
+    .choice input[type="radio"] {
+      width: auto;
+      margin-left: 10px;
+      margin-bottom: 0;
+    }
+    
+    .declaration-box {
+      margin-top: 20px;
+      background: #f8f9fa;
+      padding: 20px;
+      border-radius: 12px;
+      text-align: right;
+      display: none;
+      border-right: 4px solid #667eea;
+      line-height: 1.6;
+    }
+    
+    #mapPage {
+      display: none;
+      height: 100vh;
+      width: 100vw;
+      flex-direction: row;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+    }
+    
+    #map { 
+      width: 65%; 
+      height: 100vh; 
+    }
+    
+    .sidebar {
+      width: 35%;
+      background: #fff;
+      padding: 30px;
+      overflow-y: auto;
+      box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+    }
+    
+    .sidebar h3 {
+      color: #4a5568;
+      margin-bottom: 20px;
+      font-size: 20px;
+    }
+    
+    .sidebar label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #2d3748;
+    }
+    
+    #passengerPage, #driverPage, #mapPage {
+      display: none;
+    }
+    
+    .file-input-wrapper {
+      position: relative;
+      margin-bottom: 15px;
+    }
+    
+    .file-input-wrapper input[type="file"] {
+      opacity: 0;
+      position: absolute;
+      z-index: -1;
+    }
+    
+    .file-input-label {
+      display: block;
+      padding: 15px;
+      background: #f8f9fa;
+      border: 2px dashed #cbd5e0;
+      border-radius: 12px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    
+    .file-input-label:hover {
+      border-color: #667eea;
+      background: #edf2f7;
+    }
+    
+    .success-message {
+      background: #c6f6d5;
+      color: #22543d;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 15px;
+      display: none;
+    }
+    
+    .error-message {
+      background: #fed7d7;
+      color: #742a2a;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 15px;
+      display: none;
+    }
+    
+    @media (max-width: 768px) {
+      #mapPage {
+        flex-direction: column;
+      }
+      
+      #map {
+        width: 100%;
+        height: 60vh;
+      }
+      
+      .sidebar {
+        width: 100%;
+        height: 40vh;
+        padding: 20px;
+      }
+      
+      .box {
+        margin: 10px;
+        padding: 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<!-- صفحة تسجيل الدخول -->
+<div class="box" id="loginPage">
+  <h2>مرحباً بك في GRASIAS</h2>
+  <div class="choice">
+    <label>
+      <input type="radio" name="role" value="sayeq"> 
+      <span>🚗 سائق</span>
+    </label>
+    <label>
+      <input type="radio" name="role" value="rakib"> 
+      <span>🧍‍♀️ راكب</span>
+    </label>
+  </div>
+  <button onclick="signInWithGoogle()">🔐 تسجيل الدخول باستخدام Google</button>
+</div>
+
+<!-- صفحة معلومات الراكب -->
+<div class="box" id="passengerPage">
+  <h2>معلومات الراكب</h2>
+  <div class="success-message" id="passengerSuccess"></div>
+  <div class="error-message" id="passengerError"></div>
+  
+  <input type="text" id="passengerName" placeholder="الاسم الكامل" required>
+  <input type="tel" id="passengerPhone" placeholder="رقم الهاتف (مثال: 0612345678)" required>
+  
+  <div class="file-input-wrapper">
+    <input type="file" id="passengerIdCard" accept="image/*" />
+    <label for="passengerIdCard" class="file-input-label">
+      📄 اختر صورة بطاقة الهوية
+    </label>
+  </div>
+  
+  <button onclick="submitPassengerInfo()">متابعة ➡️</button>
+</div>
+
+<!-- صفحة معلومات السائق -->
+<div class="box" id="driverPage">
+  <h2>معلومات السائق</h2>
+  <div class="success-message" id="driverSuccess"></div>
+  <div class="error-message" id="driverError"></div>
+  
+  <input type="text" id="driverName" placeholder="الاسم الكامل" required>
+  <input type="tel" id="driverPhone" placeholder="رقم الهاتف (مثال: 0612345678)" required>
+  <input type="text" id="carType" placeholder="نوع السيارة (مثال: تويوتا كورولا)" required>
+  <input type="text" id="carColor" placeholder="لون السيارة" required>
+  <input type="text" id="plateNumber" placeholder="رقم لوحة السيارة" required>
+  
+  <div class="file-input-wrapper">
+    <input type="file" id="driverId" accept="image/*" required>
+    <label for="driverId" class="file-input-label">
+      📄 اختر صورة بطاقة الهوية
+    </label>
+  </div>
+  
+  <div class="file-input-wrapper">
+    <input type="file" id="carCheck" accept="image/*" required>
+    <label for="carCheck" class="file-input-label">
+      🔧 اختر صورة التشخيص التقني
+    </label>
+  </div>
+  
+  <button onclick="showDeclaration()">📜 عرض التعهد</button>
+  <div class="declaration-box" id="declarationBox"></div>
+  <button onclick="startDriverMap()">متابعة ➡️</button>
+</div>
+
+<!-- صفحة الخريطة -->
+<div id="mapPage">
+  <div id="map"></div>
+  <div class="sidebar">
+    <h3>🚗 تفاصيل الرحلة</h3>
+    <label>الوجهة:</label>
+    <input type="text" id="destination" placeholder="أدخل وجهتك (مثال: جامعة الجزائر)">
+    
+    <label>عدد الركاب:</label>
+    <input type="number" id="passengers" min="1" max="8" placeholder="عدد الركاب" value="1">
+    
+    <label>ملاحظات إضافية:</label>
+    <textarea id="notes" placeholder="أي ملاحظات خاصة..." style="height: 80px; resize: vertical;"></textarea>
+    
+    <button onclick="activateRide()">🚗 تفعيل الرحلة</button>
+    <button onclick="logout()" style="background: #e53e3e; margin-top: 10px;">🚪 تسجيل الخروج</button>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+  let currentMap = null;
+  let currentMarker = null;
+
+  function showPage(id) {
+    ["loginPage", "passengerPage", "driverPage", "mapPage"].forEach(p => {
+      document.getElementById(p).style.display = "none";
+    });
+    document.getElementById(id).style.display = id === "mapPage" ? "flex" : "block";
+  }
+
+  function showMessage(type, message, pagePrefix = '') {
+    const successEl = document.getElementById(pagePrefix + 'Success');
+    const errorEl = document.getElementById(pagePrefix + 'Error');
+    
+    if (type === 'success') {
+      successEl.textContent = message;
+      successEl.style.display = 'block';
+      errorEl.style.display = 'none';
+    } else {
+      errorEl.textContent = message;
+      errorEl.style.display = 'block';
+      successEl.style.display = 'none';
+    }
+    
+    setTimeout(() => {
+      successEl.style.display = 'none';
+      errorEl.style.display = 'none';
+    }, 5000);
+  }
+
+  function loadMap(userName) {
+    if (currentMap) {
+      currentMap.remove();
+    }
+    
+    currentMap = L.map('map').setView([28.0339, 1.6596], 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(currentMap);
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(position => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        currentMap.setView([lat, lng], 14);
+
+        if (currentMarker) {
+          currentMap.removeLayer(currentMarker);
+        }
+        
+        currentMarker = L.marker([lat, lng]).addTo(currentMap)
+          .bindPopup(`📍 ${userName}`)
+          .openPopup();
+      }, (error) => {
+        console.error("خطأ في تحديد الموقع:", error);
+        alert("⚠️ تعذر تحديد موقعك. يرجى التأكد من تفعيل خدمة الموقع.");
+      });
+    } else {
+      alert("⚠️ المتصفح لا يدعم تحديد الموقع.");
+    }
+  }
+
+  function validatePhone(phone) {
+    const phoneRegex = /^(06|07|05)\d{8}$/;
+    return phoneRegex.test(phone);
+  }
+
+  function submitPassengerInfo() {
+    const name = document.getElementById("passengerName").value.trim();
+    const phone = document.getElementById("passengerPhone").value.trim();
+    const idCard = document.getElementById("passengerIdCard").files[0];
+    
+    if (!name) {
+      showMessage('error', 'يرجى إدخال الاسم الكامل', 'passenger');
+      return;
+    }
+    
+    if (!phone || !validatePhone(phone)) {
+      showMessage('error', 'يرجى إدخال رقم هاتف صحيح', 'passenger');
+      return;
+    }
+    
+    if (!idCard) {
+      showMessage('error', 'يرجى اختيار صورة بطاقة الهوية', 'passenger');
+      return;
+    }
+    
+    showMessage('success', 'تم حفظ المعلومات بنجاح!', 'passenger');
+    
+    setTimeout(() => {
+      showPage("mapPage");
+      loadMap(name);
+    }, 1500);
+  }
+
+  function startDriverMap() {
+    const name = document.getElementById("driverName").value.trim();
+    const phone = document.getElementById("driverPhone").value.trim();
+    const carType = document.getElementById("carType").value.trim();
+    const carColor = document.getElementById("carColor").value.trim();
+    const plateNumber = document.getElementById("plateNumber").value.trim();
+    const driverId = document.getElementById("driverId").files[0];
+    const carCheck = document.getElementById("carCheck").files[0];
+    
+    if (!name || !phone || !carType || !carColor || !plateNumber) {
+      showMessage('error', 'يرجى ملء جميع الحقول المطلوبة', 'driver');
+      return;
+    }
+    
+    if (!validatePhone(phone)) {
+      showMessage('error', 'يرجى إدخال رقم هاتف صحيح', 'driver');
+      return;
+    }
+    
+    if (!driverId || !carCheck) {
+      showMessage('error', 'يرجى رفع جميع الوثائق المطلوبة', 'driver');
+      return;
+    }
+    
+    const driverData = { name, phone, carType, carColor, plateNumber };
+    localStorage.setItem("driverData", JSON.stringify(driverData));
+    
+    showMessage('success', 'تم حفظ المعلومات بنجاح!', 'driver');
+    
+    setTimeout(() => {
+      showPage("mapPage");
+      loadMap(name);
+    }, 1500);
+  }
+
+  function showDeclaration() {
+    const name = document.getElementById("driverName").value.trim();
+    if (!name) {
+      showMessage('error', 'يرجى إدخال الاسم أولاً', 'driver');
+      return;
+    }
+    
+    const declarationBox = document.getElementById("declarationBox");
+    declarationBox.style.display = "block";
+    declarationBox.innerHTML = `
+      <h4>تعهد السائق</h4>
+      <p>أنا المتعهد السيد/ة <strong>${name}</strong> أقر وأتعهد بما يلي:</p>
+      <ul style="text-align: right; line-height: 1.8;">
+        <li>الالتزام بقوانين المرور والسلامة العامة</li>
+        <li>المحافظة على سلامة الركاب</li>
+        <li>عدم القيادة تحت تأثير أي مواد مخدرة أو كحولية</li>
+        <li>الالتزام بالأسعار المحددة من قبل المنصة</li>
+        <li>التعامل بأدب واحترام مع جميع الركاب</li>
+      </ul>
+      <p><strong>التوقيع:</strong> ${name}</p>
+      <p><strong>التاريخ:</strong> ${new Date().toLocaleDateString('ar-DZ')}</p>
+    `;
+  }
+
+  function activateRide() {
+    const destination = document.getElementById("destination").value.trim();
+    const passengers = document.getElementById("passengers").value;
+    const notes = document.getElementById("notes").value.trim();
+    
+    if (!destination) {
+      alert("يرجى إدخال الوجهة");
+      return;
+    }
+    
+    if (!passengers || passengers < 1 || passengers > 8) {
+      alert("يرجى إدخال عدد صحيح للركاب (1-8)");
+      return;
+    }
+    
+    const rideData = {
+      destination,
+      passengers: parseInt(passengers),
+      notes,
+      timestamp: new Date().toISOString(),
+      status: 'active'
+    };
+    
+    localStorage.setItem("currentRide", JSON.stringify(rideData));
+    alert(`🚗 تم تفعيل الرحلة بنجاح!\n📍 الوجهة: ${destination}\n👥 عدد الركاب: ${passengers}`);
+  }
+
+  function logout() {
+    if (confirm("هل أنت متأكد من تسجيل الخروج؟")) {
+      localStorage.clear();
+      if (currentMap) {
+        currentMap.remove();
+        currentMap = null;
+      }
+      showPage("loginPage");
+    }
+  }
+
+  // تحسين تجربة رفع الملفات
+  document.addEventListener('DOMContentLoaded', function() {
+    const fileInputs = document.querySelectorAll('input[type="file"]');
+    fileInputs.forEach(input => {
+      input.addEventListener('change', function() {
+        const label = document.querySelector(`label[for="${this.id}"]`);
+        if (this.files.length > 0) {
+          label.style.borderColor = '#48bb78';
+          label.style.backgroundColor = '#f0fff4';
+          label.innerHTML = `✅ تم اختيار الملف: ${this.files[0].name}`;
+        }
+      });
+    });
+  });
+</script>
+
+</body>
+</html>
