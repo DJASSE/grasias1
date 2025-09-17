@@ -807,6 +807,65 @@ const provider = new GoogleAuthProvider();
 provider.setCustomParameters({
 prompt: 'select_account'
 });
+// ✅ تعريف الدوال بشكل عالمي
+window.signInWithGoogle = function () {
+  const roleInput = document.querySelector('input[name="role"]:checked');
+  if (!roleInput) {
+    alert("❗ يرجى اختيار الدور قبل تسجيل الدخول");
+    return;
+  }
+
+  window.currentRole = roleInput.value;
+
+  signInWithPopup(auth, provider)
+    .then((result) => {
+      const user = result.user;
+      window.currentUser = user;
+      console.log("✅ تسجيل الدخول:", user.displayName);
+      // هنا تستدعي دالة لمعالجة الدخول مثلاً:
+      // handleUserLogin(user);
+    })
+    .catch((error) => {
+      console.error("خطأ أثناء تسجيل الدخول:", error.message);
+      alert("فشل تسجيل الدخول: " + error.message);
+    });
+};
+
+window.signInWithGoogleRedirect = function () {
+  const roleInput = document.querySelector('input[name="role"]:checked');
+  if (!roleInput) {
+    alert("❗ يرجى اختيار الدور قبل تسجيل الدخول");
+    return;
+  }
+
+  window.currentRole = roleInput.value;
+  signInWithRedirect(auth, provider);
+};
+
+// ✅ التحقق من نتيجة تسجيل الدخول بالـ Redirect
+getRedirectResult(auth).then((result) => {
+  if (result) {
+    const user = result.user;
+    window.currentUser = user;
+    console.log("✅ تسجيل الدخول (Redirect):", user.displayName);
+    // handleUserLogin(user);
+  }
+}).catch((error) => {
+  console.error("خطأ في redirect:", error.message);
+});
+
+// ✅ متابعة حالة تسجيل الدخول
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    window.currentUser = user;
+    console.log("🔄 المستخدم مازال مسجّل:", user.displayName);
+    // handleUserLogin(user);
+  } else {
+    window.currentUser = null;
+    console.log("🚪 تم تسجيل الخروج");
+  }
+});
+</script>
 
 // جعل المتغيرات والدوال متاحة عالمياً
 window.currentUser = null;
@@ -2109,6 +2168,7 @@ console.log('🚗 تم تحميل تطبيق GRASIAS بنجاح');
 </script>
 </body>
 </html>
+
 
 
 
